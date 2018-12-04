@@ -19,9 +19,6 @@ object Part1 extends App {
     }
     resMap += guardId -> arr
   }
-  def fixed(str: String): String = {
-    str.replaceFirst("""23:\d{2}""", "00:00")
-  }
 
   val sortedData = Input.Data.sortBy { case DatePattern(date) => date }
   //println(sortedData.mkString("\n"))
