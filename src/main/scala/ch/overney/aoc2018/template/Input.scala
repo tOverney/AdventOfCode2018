@@ -1,4 +1,4 @@
-package ch.overney.aoc2018.day0
+package ch.overney.aoc2018.template
 
 object Input {
   private val sampleData = """"""
