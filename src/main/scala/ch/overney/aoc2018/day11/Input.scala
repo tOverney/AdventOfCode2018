@@ -1,4 +1,4 @@
-package ch.overney.aoc2018.template
+package ch.overney.aoc2018.day11
 
 object Input {
   val Data = List(
