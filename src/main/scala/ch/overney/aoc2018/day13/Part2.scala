@@ -53,6 +53,7 @@ object Part2 extends App {
   val CartGoingWest = '<' -> (GoingWest, HorizontalLine)
   val CartGoingEast = '>' -> (GoingEast, HorizontalLine)
   val CartCharsMapping = Map(CartGoingNorth, CartGoingSouth, CartGoingEast, CartGoingWest)
+  val remainingCartId = "2556"
 
   def infiniteIntersectionDecisionsStream: Stream[IntersectionChoices] =
     IntersectionChoices.values.toStream #::: infiniteIntersectionDecisionsStream
@@ -100,21 +101,29 @@ object Part2 extends App {
 
   println(initialCarts)
 
-  def iterate(carts: List[Cart]): (Int, Int) = {
+  def iterate(cartsToHandle: List[Cart], handledCarts: List[Cart] = Nil): (Int, Int) = {
+    val carts = cartsToHandle ::: handledCarts
     lazy val collisions = carts.map(cart => (cart.x, cart.y) -> cart).groupBy(_._1).filter(_._2.size > 1)
-    if (carts.isEmpty) {
-      sys.error("Woops, it broke!")
+    if (cartsToHandle.isEmpty) {
+      iterate(handledCarts)
     } else if (carts.size == 1) {
-      carts.head.position
+      val cart = if (handledCarts.nonEmpty) {
+        carts.head
+      } else {
+        carts.head.moveAndAdjustVelocity(terrainMap)
+      }
+      cart.position
     } else if (collisions.nonEmpty) {
       val collidingCartIds = collisions.flatMap(_._2.map(_._2.initXY)).toSet
-      iterate(carts.filterNot(c => collidingCartIds(c.initXY)))
+      def withCollidedRemoved(cList: List[Cart]): List[Cart] = cList.filterNot(c => collidingCartIds(c.initXY))
+      iterate(withCollidedRemoved(cartsToHandle), withCollidedRemoved(handledCarts))
     } else {
-      val updatedCarts = carts.map(_.moveAndAdjustVelocity(terrainMap))
-      iterate(updatedCarts)
+      val head :: tail = cartsToHandle
+      val updated = head.moveAndAdjustVelocity(terrainMap)
+      iterate(tail, handledCarts :+ updated)
     }
   }
 
-  // Tried: 116,54
+  // Tried: 116,54 115,54
   println(iterate(initialCarts))
 }

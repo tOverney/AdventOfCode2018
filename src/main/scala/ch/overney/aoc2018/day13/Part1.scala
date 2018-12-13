@@ -109,5 +109,6 @@ object Part1 extends App {
     }
   }
 
+  // This doesn't give the right answer if the first crash is two carts "exchanging" spots!
   println(iterate(initialCarts))
 }
