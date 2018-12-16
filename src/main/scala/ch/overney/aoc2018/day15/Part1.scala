@@ -2,7 +2,6 @@ package ch.overney.aoc2018.day15
 
 import scala.annotation.tailrec
 import scala.collection.{GenSet, mutable}
-import scala.collection.mutable.ListBuffer
 
 object helper {
   type Coord = (Int, Int)
@@ -102,126 +101,37 @@ object Part1 extends App {
         }
       }
 
-      def firstValidShortestPath(fromPos: Coord, tuples: List[(Int, Coord)], objects: Set[Coord]): Option[Coord] = {
-
-        case class ValidNextStep(pos: Coord)
-        object ValidNextStep {
-          def unapply(tup: (Int, Coord)): Option[(Int, Coord)] = {
-            var noNos: mutable.Set[Coord] = mutable.Set.empty ++ objects
-            val (manhattanDist, target) = tup
-
-            val path: ListBuffer[Coord] = ListBuffer()
-            val localAcc: ListBuffer[(Int, Coord)] = ListBuffer()
-            val decisionStack: ListBuffer[(Coord, List[Coord], Set[Coord])] = ListBuffer()
-
-            def computePath(): Option[(Int, Coord)] = {
-              val currentPos = path.lastOption.getOrElse(fromPos)
-              //printlnOpt(currentPos + " -> " + decisionStack.size)
-
-              def addNonoAndReset(): Unit = {
-                val firstStep = path.last
-                path.clear()
-                if (decisionStack.nonEmpty) {
-                  val (_, others, noNosSnapshot) = decisionStack.remove(0)
-                  noNos.clear()
-                  noNos ++= noNosSnapshot
-                  path.appendAll(others)
-                  //printlnOpt("back to " + others.head + "       " + others)
-                } else {
-                  noNos += firstStep
-                }
-              }
-
-              if (target == currentPos) {
-                //printlnOpt(path.mkString(" -> "))
-                val pathLen = path.size
-                if (manhattanDist == pathLen) {
-                  Some(pathLen -> path.head)
-                } else {
-                  localAcc.append((pathLen, path.head))
-
-                  addNonoAndReset()
-                  computePath()
-                }
-              } else {
-                val possibleMoves = currentPos.neighbouringCells(noNos ++ path).sortBy(manDistance(_, target))
-                if (possibleMoves.isEmpty) {
-                  if (currentPos == fromPos) {
-                    None
-                  } else {
-                    //printlnOpt("stuck! " + path)
-                    addNonoAndReset()
-                    computePath()
-                  }
-                } else {
-                  val taken :: others = possibleMoves
-                  lazy val noNosSnapshot = noNos.toSet + taken
-                  val otherPaths = others.map(o => (taken, path.toList :+ o, noNosSnapshot))
-                  //printlnOpt("taken: " + taken + " alternatives " + otherPaths.map(_._2))
-                  path.append(taken)
-                  decisionStack.prependAll(otherPaths)
-                  computePath()
-                }
-              }
-            }
-
-            val res = computePath() orElse {
-              if (localAcc.nonEmpty) {
-                Some(localAcc.min)
-              } else {
-                None
-              }
-            }
-
-            //printlnOpt(res)
-            res
-          }
-        }
-
-        val start = System.currentTimeMillis()
-        val possiblePaths = tuples.groupBy(_._1).mapValues(_.toStream.map(ValidNextStep.unapply)).toList.sortBy(_._1)
-        def findPath(toExplore: List[(Int, Stream[Option[(Int, Coord)]])], explored: List[(Int, Coord)]): Option[(Int, Coord)] = {
-          //printlnOpt("posspath: " + toExplore + "Explored: " + explored)
-          toExplore match {
-            case Nil => explored.headOption
-            case (manDist, _) :: _ if explored.headOption.exists(_._1 <= manDist) => explored.headOption
-            case (_, Stream()) :: tail => findPath(tail, explored)
-            case (md, possibility #:: others) :: tail =>
-              findPath((md, others) :: tail, (explored ++ possibility).sorted)
-          }
-        }
-
-
-        val x = findPath(possiblePaths, Nil).map(_._2)
-        println(s"Old found $x in: " + (System.currentTimeMillis() - start))
+      def firstValidShortestPath(fromPos: Coord, targets: List[Coord], objects: Set[Coord]): Option[Coord] = {
         val newStart = System.currentTimeMillis()
 
-        type CC = (List[Coord], Coord)
+        type CC = (Coord, Coord, Int)
+        val visited = mutable.Set[Coord]()
+        visited ++= objects
 
-        def bfs(from: Coord, targets: List[Coord]): Option[Coord] = {
-          @tailrec
-          def breadthFirstTraverse(s: Stream[CC], f: CC => Stream[CC], isFinal: CC => Boolean): Option[CC] = {
-            if (s.isEmpty) None
-            else if (isFinal(s.head)) Some(s.head)
-            else if (s.head._1.size > 10 && targets.forall(t => f((Nil, t)).isEmpty)) None
-            else breadthFirstTraverse(s.tail append f(s.head), f, isFinal)
+        @tailrec
+        def breadthFirstTraverse(s: Stream[CC], f: CC => Stream[CC], isFinal: CC => Boolean, resAcc: List[CC]): List[CC] = {
+          if (s.isEmpty) resAcc
+          else if (resAcc.nonEmpty && s.head._3 > resAcc.head._3) resAcc
+          else if (isFinal(s.head)) {
+            visited += s.head._2
+            breadthFirstTraverse(s.tail, f, isFinal, s.head :: resAcc)
           }
-
-          def neighborsFinder(from: CC): Stream[CC] = {
-            val (path, coord) = from
-            coord.neighbouringCells(objects ++ path).map(pos => (pos :: path, pos)).toStream
+          else {
+            visited += s.head._2
+            breadthFirstTraverse(s.tail append f(s.head), f, isFinal, resAcc)
           }
-          val initialStream = Stream((List(from), from))
-          breadthFirstTraverse(initialStream, neighborsFinder, node => targets.contains(node._2)).map(_._1.reverse(1))
         }
 
-        val targets = tuples.unzip._2
-        if (x.isEmpty) {
-          println(idx + "  " + fromPos + "  " + targets)
-          printTerrain()
+        def neighborsFinder(from: CC): Stream[CC] = {
+          val (first, coord, distance) = from
+          coord.neighbouringCells(visited).map(pos => (first, pos, distance + 1)).toStream
         }
 
-        val y = bfs(fromPos, targets)
+        val initialStream = (fromPos, fromPos, 0) #:: fromPos.neighbouringCells(visited).map(x => (x, x, 1)).toStream
+        val y =  breadthFirstTraverse(initialStream, neighborsFinder, node => targets.contains(node._2), Nil)
+          .sortBy(_._2)
+          .headOption
+          .map(_._1)
         println(s"New found $y in: " + (System.currentTimeMillis() - newStart))
         y
       }
@@ -255,13 +165,11 @@ object Part1 extends App {
             }
 
             punchFirstEnemyInRangeOpt orElse {
-              val targetsByManDistance = enemies.flatMap { e =>
-                val naiveTargets = e.neighbouringCells.filterNot(cell => orderedForTurn.exists(_.position == cell))
-                naiveTargets.map(cell => (manDistance(cell, c.position), cell)).distinct
-              }
-              if (targetsByManDistance.nonEmpty && !c.stuck.contains(creatures.map(_.position))) {
-                val xyOpt = firstValidShortestPath(c.position, targetsByManDistance.sorted,
-                  (creatures.collect { case x if x.isAlive => x.position } ++ walls).toSet)
+              val objects = (creatures.collect { case x if x.isAlive => x.position } ++ walls).toSet
+              val targets = enemies.flatMap(_.position.neighbouringCells(objects))
+
+              if (targets.nonEmpty && !c.stuck.contains(creatures.map(_.position))) {
+                val xyOpt = firstValidShortestPath(c.position, targets.sorted, objects)
                 xyOpt.foreach { case pos @ (newX, newY) =>
                   printOpt("Move:  " + c + " ")
                   c.x = newX
@@ -303,7 +211,7 @@ object Part1 extends App {
     }
   }
 
-  assert(Runner(1)(false) == """Combat ends after 47 full rounds
+  assert(Runner(1)(false, false) == """Combat ends after 47 full rounds
                           |Goblins win with 590 total hit points left
                           |Outcome: 47 * 590 = 27730""".stripMargin, "1")
 
@@ -325,5 +233,6 @@ object Part1 extends App {
 //                               |Goblins win with 937 total hit points left
 //                               |Outcome: 20 * 937 = 18740""".stripMargin, "7")
 
+  //231264 too small
   println(Runner(Input.Data.size - 1)(true, true))
 }
