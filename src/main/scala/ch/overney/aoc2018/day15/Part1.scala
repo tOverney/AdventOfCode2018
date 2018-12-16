@@ -229,9 +229,9 @@ object Part1 extends App {
   assert(Runner(6)(false) == """Combat ends after 54 full rounds
                                |Goblins win with 536 total hit points left
                                |Outcome: 54 * 536 = 28944""".stripMargin, "6")
-//  assert(Runner(7)(false, false) == """Combat ends after 20 full rounds
-//                               |Goblins win with 937 total hit points left
-//                               |Outcome: 20 * 937 = 18740""".stripMargin, "7")
+  assert(Runner(7)(false, false) == """Combat ends after 20 full rounds
+                               |Goblins win with 937 total hit points left
+                               |Outcome: 20 * 937 = 18740""".stripMargin, "7")
 
   //231264 too small
   println(Runner(Input.Data.size - 1)(true, true))
