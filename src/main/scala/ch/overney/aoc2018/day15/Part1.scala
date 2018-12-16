@@ -1,5 +1,6 @@
 package ch.overney.aoc2018.day15
 
+import scala.annotation.tailrec
 import scala.collection.{GenSet, mutable}
 import scala.collection.mutable.ListBuffer
 
@@ -21,7 +22,7 @@ object helper {
     Math.abs(a.x - b.x) + Math.abs(a.y - b.y)
   }
 
-  val Deltas = List((-1, 0), (1, 0), (0, -1), (0, 1))
+  val Deltas = List((-1, 0), (0, -1), (0, 1),  (1, 0))
   val GoblinsRaceName = "Goblins"
 }
 
@@ -59,8 +60,47 @@ object Part1 extends App {
 
 
     def apply(shouldPrint: Boolean, ascii: Boolean = false): String = {
-      def printlnOpt(x: Any): Unit = if (shouldPrint) println(x)
-      def printOpt(x: Any): Unit = if (shouldPrint) print(x)
+      def printlnOpt(x: => Any): Unit = if (shouldPrint) println(x)
+      def printOpt(x: => Any): Unit = if (shouldPrint) print(x)
+
+      val input = Input.DataEntries(idx)
+      val creatures = input.zipWithIndex.flatMap { case (row, x) =>
+        row.zipWithIndex.flatMap { case (cell, y) =>
+          val content: Option[Creature] = cell match {
+            case '#' =>
+              walls.add((x, y))
+              None
+            case 'G' => Some(Goblin(x, y))
+            case 'E' => Some(Elf(x, y))
+            case '.' | _ => None
+          }
+
+          content
+        }
+      }.toList
+
+      val height = input.length
+      val width = input.head.length
+      val (goblins, elves) = creatures.partition(_.raceName == GoblinsRaceName)
+      var roundTracker = 0
+      printlnOpt(roundTracker + "   " + creatures.filter(_.isAlive).sortBy(_.position).mkString(" "))
+
+      def printTerrain(): Unit = {
+        walls.unzip
+        for {
+          x <- 0 until height
+          y <- 0 until width
+          curr = (x, y)
+        } {
+          if (walls(curr)) print('#')
+          else {
+            val cOpt = creatures.find(c => c.position == curr && c.isAlive)
+            cOpt.foreach(c => print(c.raceName.head))
+            cOpt.getOrElse(print('.'))
+          }
+          if (y == width - 1) println()
+        }
+      }
 
       def firstValidShortestPath(fromPos: Coord, tuples: List[(Int, Coord)], objects: Set[Coord]): Option[Coord] = {
 
@@ -133,12 +173,12 @@ object Part1 extends App {
               }
             }
 
-
             //printlnOpt(res)
             res
           }
         }
 
+        val start = System.currentTimeMillis()
         val possiblePaths = tuples.groupBy(_._1).mapValues(_.toStream.map(ValidNextStep.unapply)).toList.sortBy(_._1)
         def findPath(toExplore: List[(Int, Stream[Option[(Int, Coord)]])], explored: List[(Int, Coord)]): Option[(Int, Coord)] = {
           //printlnOpt("posspath: " + toExplore + "Explored: " + explored)
@@ -152,29 +192,39 @@ object Part1 extends App {
         }
 
 
-        findPath(possiblePaths, Nil).map(_._2)
-      }
-      val input = Input.DataEntries(idx)
-      val creatures = input.zipWithIndex.flatMap { case (row, x) =>
-        row.zipWithIndex.flatMap { case (cell, y) =>
-          val content: Option[Creature] = cell match {
-            case '#' =>
-              walls.add((x, y))
-              None
-            case 'G' => Some(Goblin(x, y))
-            case 'E' => Some(Elf(x, y))
-            case '.' | _ => None
+        val x = findPath(possiblePaths, Nil).map(_._2)
+        println(s"Old found $x in: " + (System.currentTimeMillis() - start))
+        val newStart = System.currentTimeMillis()
+
+        type CC = (List[Coord], Coord)
+
+        def bfs(from: Coord, targets: List[Coord]): Option[Coord] = {
+          @tailrec
+          def breadthFirstTraverse(s: Stream[CC], f: CC => Stream[CC], isFinal: CC => Boolean): Option[CC] = {
+            if (s.isEmpty) None
+            else if (isFinal(s.head)) Some(s.head)
+            else if (s.head._1.size > 10 && targets.forall(t => f((Nil, t)).isEmpty)) None
+            else breadthFirstTraverse(s.tail append f(s.head), f, isFinal)
           }
 
-          content
+          def neighborsFinder(from: CC): Stream[CC] = {
+            val (path, coord) = from
+            coord.neighbouringCells(objects ++ path).map(pos => (pos :: path, pos)).toStream
+          }
+          val initialStream = Stream((List(from), from))
+          breadthFirstTraverse(initialStream, neighborsFinder, node => targets.contains(node._2)).map(_._1.reverse(1))
         }
-      }.toList
 
-      val height = input.length
-      val width = input.head.length
-      val (goblins, elves) = creatures.partition(_.raceName == GoblinsRaceName)
-      var roundTracker = 0
-      printlnOpt(roundTracker + "   " + creatures.filter(_.isAlive).sortBy(_.position).mkString(" "))
+        val targets = tuples.unzip._2
+        if (x.isEmpty) {
+          println(idx + "  " + fromPos + "  " + targets)
+          printTerrain()
+        }
+
+        val y = bfs(fromPos, targets)
+        println(s"New found $y in: " + (System.currentTimeMillis() - newStart))
+        y
+      }
 
       while (goblins.exists(_.isAlive) && elves.exists(_.isAlive)) {
         val orderedForTurn = creatures.filter(_.isAlive).sortBy(_.position)
@@ -236,20 +286,7 @@ object Part1 extends App {
           roundTracker += 1
         }
         if (ascii) {
-          walls.unzip
-          for {
-            x <- 0 until height
-            y <- 0 until width
-            curr = (x, y)
-          } {
-            if (walls(curr)) print('#')
-            else {
-              val cOpt = creatures.find(c => c.position == curr && c.isAlive)
-              cOpt.foreach(c => print(c.raceName.head))
-              cOpt.getOrElse(print('.'))
-            }
-            if (y == width - 1) println()
-          }
+          printTerrain()
         }
         printlnOpt(roundTracker + "   " + orderedForTurn.mkString(" "))
       }
@@ -284,9 +321,9 @@ object Part1 extends App {
   assert(Runner(6)(false) == """Combat ends after 54 full rounds
                                |Goblins win with 536 total hit points left
                                |Outcome: 54 * 536 = 28944""".stripMargin, "6")
-  assert(Runner(7)(false, false) == """Combat ends after 20 full rounds
-                               |Goblins win with 937 total hit points left
-                               |Outcome: 20 * 937 = 18740""".stripMargin, "7")
+//  assert(Runner(7)(false, false) == """Combat ends after 20 full rounds
+//                               |Goblins win with 937 total hit points left
+//                               |Outcome: 20 * 937 = 18740""".stripMargin, "7")
 
   println(Runner(Input.Data.size - 1)(true, true))
 }
