@@ -63,6 +63,7 @@ object Part1 extends App {
       def printOpt(x: Any): Unit = if (shouldPrint) print(x)
 
       def firstValidShortestPath(fromPos: Coord, tuples: List[(Int, Coord)], objects: Set[Coord]): Option[Coord] = {
+
         case class ValidNextStep(pos: Coord)
         object ValidNextStep {
           def unapply(tup: (Int, Coord)): Option[(Int, Coord)] = {
@@ -92,14 +93,13 @@ object Part1 extends App {
               }
 
               if (target == currentPos) {
-                printlnOpt(path.mkString(" -> "))
+                //printlnOpt(path.mkString(" -> "))
                 val pathLen = path.size
-                if (pathLen == manhattanDist) {
+                if (manhattanDist == pathLen) {
                   Some(pathLen -> path.head)
                 } else {
-                  val firstCrossChoices = decisionStack.dropWhile(_._1 != path.head)
-                  decisionStack.clear()
-                  decisionStack.appendAll(firstCrossChoices)
+                  localAcc.append((pathLen, path.head))
+
                   addNonoAndReset()
                   computePath()
                 }
@@ -109,6 +109,7 @@ object Part1 extends App {
                   if (currentPos == fromPos) {
                     None
                   } else {
+                    //printlnOpt("stuck! " + path)
                     addNonoAndReset()
                     computePath()
                   }
@@ -140,7 +141,7 @@ object Part1 extends App {
 
         val possiblePaths = tuples.groupBy(_._1).mapValues(_.toStream.map(ValidNextStep.unapply)).toList.sortBy(_._1)
         def findPath(toExplore: List[(Int, Stream[Option[(Int, Coord)]])], explored: List[(Int, Coord)]): Option[(Int, Coord)] = {
-          printlnOpt("posspath: " + toExplore + "Explored: " + explored)
+          //printlnOpt("posspath: " + toExplore + "Explored: " + explored)
           toExplore match {
             case Nil => explored.headOption
             case (manDist, _) :: _ if explored.headOption.exists(_._1 <= manDist) => explored.headOption
@@ -206,14 +207,9 @@ object Part1 extends App {
             punchFirstEnemyInRangeOpt orElse {
               val targetsByManDistance = enemies.flatMap { e =>
                 val naiveTargets = e.neighbouringCells.filterNot(cell => orderedForTurn.exists(_.position == cell))
-                naiveTargets.map(cell => (manDistance(cell, c.position), cell))
+                naiveTargets.map(cell => (manDistance(cell, c.position), cell)).distinct
               }
-              def notStuck = {
-                val isStuck = c.stuck.contains(creatures.map(_.position))
-                if (isStuck) printlnOpt(c + " is stuck.")
-                !isStuck
-              }
-              if (targetsByManDistance.nonEmpty && notStuck) {
+              if (targetsByManDistance.nonEmpty && !c.stuck.contains(creatures.map(_.position))) {
                 val xyOpt = firstValidShortestPath(c.position, targetsByManDistance.sorted,
                   (creatures.collect { case x if x.isAlive => x.position } ++ walls).toSet)
                 xyOpt.foreach { case pos @ (newX, newY) =>
@@ -227,7 +223,6 @@ object Part1 extends App {
                 }
                 if (xyOpt.isEmpty) {
                   c.stuck = Some(creatures.map(_.position))
-                  printlnOpt(c + " is stuck.")
                 } else {
                   c.stuck = None
                 }
@@ -275,7 +270,7 @@ object Part1 extends App {
                           |Goblins win with 590 total hit points left
                           |Outcome: 47 * 590 = 27730""".stripMargin, "1")
 
-  assert(Runner(2)(true, true) == """Combat ends after 37 full rounds
+  assert(Runner(2)(false, false) == """Combat ends after 37 full rounds
                           |Elves win with 982 total hit points left
                           |Outcome: 37 * 982 = 36334""".stripMargin, "2")
 
@@ -289,7 +284,7 @@ object Part1 extends App {
   assert(Runner(6)(false) == """Combat ends after 54 full rounds
                                |Goblins win with 536 total hit points left
                                |Outcome: 54 * 536 = 28944""".stripMargin, "6")
-  assert(Runner(7)(true, true) == """Combat ends after 20 full rounds
+  assert(Runner(7)(false, false) == """Combat ends after 20 full rounds
                                |Goblins win with 937 total hit points left
                                |Outcome: 20 * 937 = 18740""".stripMargin, "7")
 
