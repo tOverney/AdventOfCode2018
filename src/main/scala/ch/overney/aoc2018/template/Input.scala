@@ -1,9 +1,9 @@
 package ch.overney.aoc2018.template
 
 object Input {
-  val Data = List(
+  val Data = IndexedSeq(
     """""",
     """"""
   )
-  val DataEntries: List[Array[String]] = Data.map(_.stripMargin.split("\n"))
+  val DataEntries: IndexedSeq[Array[String]] = Data.map(_.stripMargin.split("\n"))
 }
